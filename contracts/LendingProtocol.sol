@@ -4,24 +4,42 @@ pragma solidity ^0.8.27;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+interface IMintableERC20 is IERC20 {
+        function mint(address to, uint256 amount) external;
+    } 
 
 contract LendingProtocol {
-    using SafeERC20 for IERC20;
+    using SafeERC20 for IERC20;  
 
     event CollateralDeposited(address indexed user, uint256 amount);
+    event Borrowed(address indexed user, uint256 borrowedAmount);
 
+    IMintableERC20 public mUsdcMintable;
     IERC20 public mUsdc;
     mapping (address => uint256) public balanceOf;
+    mapping(address => uint256) public debtOf;
 
-    constructor(address usdcAddres) {
-        mUsdc = IERC20(usdcAddres);
+    constructor(address usdcAddress) {
+        mUsdc = IERC20(usdcAddress);
+        mUsdcMintable = IMintableERC20(usdcAddress);
     }
 
-    function depositColletoral(uint256 amount) external {
+    function depositCollateral(uint256 amount) external {
         require(amount > 0, "Amount must be more than 0");
         mUsdc.safeTransferFrom(msg.sender, address(this), amount); 
         
         balanceOf[msg.sender] += amount;
         emit CollateralDeposited(msg.sender, amount);
+    }
+
+   function borrow(uint256 borrowedAmount) external {
+        uint256 collateral = balanceOf[msg.sender];
+        uint256 requiredCollateral = borrowedAmount * 150 / 100;
+        require(collateral >= requiredCollateral, "Less than required");
+
+        debtOf[msg.sender] += borrowedAmount;
+        mUsdcMintable.mint(msg.sender, borrowedAmount);
+
+        emit Borrowed(msg.sender, borrowedAmount);        
     }
 }
