@@ -9,7 +9,9 @@ interface IMintableERC20 is IERC20 {
     } 
 
 contract LendingProtocol {
-    using SafeERC20 for IERC20;  
+    using SafeERC20 for IERC20; 
+
+    uint256 constant COLLATERAL_RATIO = 150;
 
     event CollateralDeposited(address indexed user, uint256 amount);
     event Borrowed(address indexed user, uint256 borrowedAmount);
@@ -34,12 +36,17 @@ contract LendingProtocol {
 
    function borrow(uint256 borrowedAmount) external {
         uint256 collateral = balanceOf[msg.sender];
-        uint256 requiredCollateral = borrowedAmount * 150 / 100;
+        uint256 requiredCollateral = borrowedAmount * COLLATERAL_RATIO / 100;
         require(collateral >= requiredCollateral, "Less than required");
 
         debtOf[msg.sender] += borrowedAmount;
         mUsdcMintable.mint(msg.sender, borrowedAmount);
 
         emit Borrowed(msg.sender, borrowedAmount);        
+    }
+
+    function getBorrowableAmount(address user) public view returns (uint256){
+        uint256 collateral = balanceOf[user];
+        return collateral * 100 / COLLATERAL_RATIO;
     }
 }
