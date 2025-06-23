@@ -3,6 +3,7 @@ pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 interface IMintableERC20 is IERC20 {
         function mint(address to, uint256 amount) external;
@@ -21,10 +22,13 @@ contract LendingProtocol {
     IERC20 public mUsdc;
     mapping (address => uint256) public balanceOf;
     mapping(address => uint256) public debtOf;
+    AggregatorV3Interface public priceFeed;
 
-    constructor(address usdcAddress) {
+
+    constructor(address usdcAddress, address _priceFeed) {
         mUsdc = IERC20(usdcAddress);
         mUsdcMintable = IMintableERC20(usdcAddress);
+        priceFeed = AggregatorV3Interface(_priceFeed);
     }
 
     function depositCollateral(uint256 amount) external {
@@ -59,5 +63,10 @@ contract LendingProtocol {
            return type(uint256).max;
         } 
         return collateral * 100 / debt;        
+    }
+
+    function getLatestPrice() public view return (uint256) {
+        (, int256 price, , ,) = priceFeed.latestRoundData();
+        return uint256(price);
     }
 }
