@@ -12,7 +12,6 @@ interface IMintableERC20 is IERC20 {
 contract LendingProtocol {
     using SafeERC20 for IERC20; 
 
-    // Will be replaced with dynamic collateral valuation via Chainlink oracle
     uint256 constant COLLATERAL_RATIO = 150;
 
     event CollateralDeposited(address indexed user, uint256 amount);
@@ -52,7 +51,13 @@ contract LendingProtocol {
 
     function getBorrowableAmount(address user) public view returns (uint256){
         uint256 collateral = balanceOf[user];
-        return collateral * 100 / COLLATERAL_RATIO;
+        uint256 price = getLatestPrice();
+        uint256 collateralValueUSD = collateral * price / 1e18;
+        uint256 borrowable = collateralValueUSD * 100 / COLLATERAL_RATIO;
+        
+        require(price > 0, "price needs to be positive");
+
+        return borrowable;
     }
 
     function getAccountHealth(address user) public view returns(uint256) {
@@ -65,6 +70,7 @@ contract LendingProtocol {
         return collateral * 100 / debt;        
     }
 
+    // fetches latest price
     function getLatestPrice() public view return (uint256) {
         (, int256 price, , ,) = priceFeed.latestRoundData();
         return uint256(price);
