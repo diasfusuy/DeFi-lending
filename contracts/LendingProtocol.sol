@@ -9,10 +9,18 @@ interface IMintableERC20 is IERC20 {
         function mint(address to, uint256 amount) external;
     } 
 
+// Future Improvement 
+// Currently, the same token (MockUSDC) is used for both collateral and debt.
+// In a real-world DeFi lending protocol, these should be separate assets.
+// - collateralToken: e.g., ETH, WBTC
+// - debtToken: e.g., USDC, DAI (minted via IMintableERC20)
+// Will be refactor in a later sprint to separate these concerns for better realism, extensibility, and security.
+
 contract LendingProtocol {
     using SafeERC20 for IERC20; 
 
     uint256 constant COLLATERAL_RATIO = 150;
+    uint256 public constant STALE_PRICE_TOLERANCE = 30 minutes;
 
     event CollateralDeposited(address indexed user, uint256 amount);
     event Borrowed(address indexed user, uint256 borrowedAmount);
@@ -77,9 +85,10 @@ contract LendingProtocol {
         return collateral * 100 / debt;        
     }
 
-    // fetches latest price
+    // Fetches latest price
     function getLatestPrice() public view returns (uint256) {
-        (, int256 price, , ,) = priceFeed.latestRoundData();
+        (uint80 roundId, int256 price, uint256 startedAt, uint256 updatedAt , uint80 answeredInRound) = priceFeed.latestRoundData();
+        require(updatedAt >= block.timestamp - STALE_PRICE_TOLERANCE, "Stale price feed");
         return uint256(price);
     }
 
