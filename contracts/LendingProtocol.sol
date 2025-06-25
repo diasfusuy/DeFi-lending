@@ -71,8 +71,17 @@ contract LendingProtocol {
     }
 
     // fetches latest price
-    function getLatestPrice() public view return (uint256) {
+    function getLatestPrice() public view returns (uint256) {
         (, int256 price, , ,) = priceFeed.latestRoundData();
         return uint256(price);
+    }
+
+    // return summary object for a given user
+    function getAccountSummary(address user) public view returns(uint256, uint256, uint256) {
+        uint256 collateral = balanceOf[user];
+        uint256 debt = debtOf[user];
+        uint256 amountBorrowed = getBorrowableAmount(user);
+
+        return (collateral, debt, amountBorrowed);
     }
 }
