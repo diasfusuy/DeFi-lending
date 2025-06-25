@@ -40,8 +40,15 @@ contract LendingProtocol {
 
    function borrow(uint256 borrowedAmount) external {
         uint256 collateral = balanceOf[msg.sender];
-        uint256 requiredCollateral = borrowedAmount * COLLATERAL_RATIO / 100;
-        require(collateral >= requiredCollateral, "Less than required");
+        // replace old logic with the live price
+        // uint256 requiredCollateral = borrowedAmount * COLLATERAL_RATIO / 100;
+        // require(collateral >= requiredCollateral, "Less than required");
+        uint256 price = getLatestPrice();
+        uint256 collateralValueUSD = collateral * price / 1e18;
+        uint256 requiredCollateralUSD = borrowedAmount * COLLATERAL_RATIO / 100;
+
+        require(collateralValueUSD >= requiredCollateralUSD, "Less than required");
+
 
         debtOf[msg.sender] += borrowedAmount;
         mUsdcMintable.mint(msg.sender, borrowedAmount);
