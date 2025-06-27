@@ -21,6 +21,7 @@ contract LendingProtocol {
 
     uint256 constant COLLATERAL_RATIO = 150;
     uint256 public constant STALE_PRICE_TOLERANCE = 30 minutes;
+    uint8 public oracleDecimals;
 
     event CollateralDeposited(address indexed user, uint256 amount);
     event Borrowed(address indexed user, uint256 borrowedAmount);
@@ -36,6 +37,7 @@ contract LendingProtocol {
         mUsdc = IERC20(usdcAddress);
         mUsdcMintable = IMintableERC20(usdcAddress);
         priceFeed = AggregatorV3Interface(_priceFeed);
+        oracleDecimals = priceFeed.decimals();
     }
 
     function depositCollateral(uint256 amount) external {
@@ -52,7 +54,7 @@ contract LendingProtocol {
         // uint256 requiredCollateral = borrowedAmount * COLLATERAL_RATIO / 100;
         // require(collateral >= requiredCollateral, "Less than required");
         uint256 price = getLatestPrice();
-        uint256 collateralValueUSD = collateral * price / 1e18;
+        uint256 collateralValueUSD = (collateral * price) / (10 ** oracleDecimals);
         uint256 requiredCollateralUSD = borrowedAmount * COLLATERAL_RATIO / 100;
 
         require(collateralValueUSD >= requiredCollateralUSD, "Less than required");
@@ -67,7 +69,7 @@ contract LendingProtocol {
     function getBorrowableAmount(address user) public view returns (uint256){
         uint256 collateral = balanceOf[user];
         uint256 price = getLatestPrice();
-        uint256 collateralValueUSD = collateral * price / 1e18;
+        uint256 collateralValueUSD = (collateral * price) / (10 ** oracleDecimals);
         uint256 borrowable = collateralValueUSD * 100 / COLLATERAL_RATIO;
         
         require(price > 0, "price needs to be positive");
@@ -87,7 +89,7 @@ contract LendingProtocol {
 
     // Fetches latest price
     function getLatestPrice() public view returns (uint256) {
-        (uint80 roundId, int256 price, uint256 startedAt, uint256 updatedAt , uint80 answeredInRound) = priceFeed.latestRoundData();
+        (, int256 price, , uint256 updatedAt ,) = priceFeed.latestRoundData();
         require(updatedAt >= block.timestamp - STALE_PRICE_TOLERANCE, "Stale price feed");
         return uint256(price);
     }
