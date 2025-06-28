@@ -27,6 +27,10 @@ This project is a **simplified DeFi lending and borrowing protocol**, inspired b
 | 3    | Frontend dApp with wallet integration  |
 | 4    | Polish, write blog post, and deploy    |
 
+## 🗓 Sprint Adjustments
+
+- Liquidation logic was moved from Sprint 2 to Sprint 3 due to the depth of oracle integration and testing.
+- Frontend and wallet connection were rescheduled to Sprint 4 to align with deployment goals.
 
 ## 🧠 Oracle Integration (Chainlink Price Feed)
 
