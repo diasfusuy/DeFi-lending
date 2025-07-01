@@ -21,10 +21,12 @@ contract LendingProtocol {
 
     uint256 constant COLLATERAL_RATIO = 150;
     uint256 public constant STALE_PRICE_TOLERANCE = 30 minutes;
+    uint256 public constant LIQUIDATION_THRESHOLD = 120;
     uint8 public oracleDecimals;
 
     event CollateralDeposited(address indexed user, uint256 amount);
     event Borrowed(address indexed user, uint256 borrowedAmount);
+    event Liquidated(address indexed user, address indexed liquidator, uint256 repayAmount, uint256 rewardAmount);
 
     IMintableERC20 public mUsdcMintable;
     IERC20 public mUsdc;
@@ -101,5 +103,31 @@ contract LendingProtocol {
         uint256 amountBorrowed = getBorrowableAmount(user);
 
         return (collateral, debt, amountBorrowed);
+    }
+
+    function liquidate(address user, uint256 repayAmount) external {
+        require(repayAmount <= debtOf[user], "Repay amount exceeed debt");
+        require(isLiquidatable(user), "Account is not liquidatable");
+
+        // Transfer USDC from liquidator to contract
+        mUsdc.safeTransferFrom(msg.sender, address(this), repayAmount);
+
+        // Burn user debt
+        debtOf[user] -= repayAmount;
+
+        // Calculate collateral reward 
+        uint256 reward = repayAmount * 105 / 100;
+        require(balanceOf[user] >= reward, "Insufficent collateral");
+
+        // Transfer collateral reward to liquidator
+        balanceOf[user] -= reward;
+        mUsdc.safeTransfer(msg.sender, reward);
+
+        emit Liquidated(user, msg.sender, repayAmount, reward);
+    }
+
+    function isLiquidatable(address user) public view returns (bool) {
+        uint256 health = getAccountHealth(user);
+        return health < LIQUIDATION_THRESHOLD;
     }
 }
