@@ -8,7 +8,7 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 interface IMintableERC20 is IERC20 {
         function mint(address to, uint256 amount) external;
     } 
-    
+
 contract LendingProtocol {
     using SafeERC20 for IERC20; 
 
@@ -22,6 +22,7 @@ contract LendingProtocol {
     event Liquidated(address indexed user, address indexed liquidator, uint256 repayAmount, uint256 rewardAmount);
 
     IMintableERC20 public mUsdcMintable;
+    IMintableERC20 public mEthMintable;
     IERC20 public mUsdc;
     IERC20 public mEth;
     mapping (address => uint256) public balanceOf;
@@ -33,6 +34,7 @@ contract LendingProtocol {
         mUsdc = IERC20(usdcAddress);
         mUsdcMintable = IMintableERC20(usdcAddress);
         mEth = IERC20(ethAddress);
+        mEthMintable = IMintableERC20(ethAddress);
         priceFeed = AggregatorV3Interface(_priceFeed);
         oracleDecimals = priceFeed.decimals();
     }
