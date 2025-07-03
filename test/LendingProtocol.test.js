@@ -3,7 +3,7 @@ const { ethers } = require("hardhat");
 const { MaxUint256 } =require ("ethers");
 
 describe("LendingProtocol", () => {
-    let lending, mockUSDC, owner, user, amount; 
+    let lending, mockUSDC, mockETH, owner, user, amount; 
 
     beforeEach(async () => {
     [owner, user] = await ethers.getSigners();
@@ -14,6 +14,12 @@ describe("LendingProtocol", () => {
     await mockUSDC.waitForDeployment();
     console.log(" mockUSDC.address:", mockUSDC?.target ?? "undefined");
 
+    // deploy MockETH 
+    const MockETHFactory = await ethers.getContractFactory("MockETH");
+    mockETH = await MockETHFactory.connect(owner).deploy(owner.address);
+    await mockETH.waitForDeployment();
+    console.log("mockETH.address:", mockETH?.target ?? "undefined");
+
     // Chainlink oracle for live updates
     const MockV3Aggregator = await ethers.getContractFactory("MockV3Aggregator");
     const decimals = 8;
@@ -23,12 +29,14 @@ describe("LendingProtocol", () => {
 
     // 2. Mint tokens to user *before* transferring ownership
     amount = ethers.parseUnits("2000", 18);
+    await mockETH.connect(owner).mint(user.address, amount);
     await mockUSDC.connect(owner).mint(user.address, amount);
 
     // 3. Deploy LendingProtocol with mockUSDC address
     const LendingProtocolFactory = await ethers.getContractFactory("LendingProtocol");
     lending = await LendingProtocolFactory.deploy(
         await mockUSDC.getAddress(),
+        await mockETH.getAddress(),
         await MockV3.getAddress()
     );
     await lending.waitForDeployment();
@@ -37,9 +45,7 @@ describe("LendingProtocol", () => {
 
     // 4. Transfer ownership of MockUSDC to LendingProtocol
     await mockUSDC.connect(owner).transferOwnership(await lending.getAddress());
-
-    // 5. Approve LendingProtocol to spend user's USDC
-    await mockUSDC.connect(user).approve(await lending.getAddress(), amount);
+    await mockETH.connect(owner).transferOwnership(await lending.getAddress());
     });
 
     // Helper function for deposit
@@ -57,12 +63,12 @@ describe("LendingProtocol", () => {
     const lendingAddress = await lending.getAddress();
 
     // Approve before deposit
-    await mockUSDC.connect(user).approve(lendingAddress, depositAmount);
+    await mockETH.connect(user).approve(lendingAddress, depositAmount);
 
     await depositFromUser(depositAmount);
 
     const userBalance = await lending.balanceOf(user.address);
-    const contractBalance = await mockUSDC.balanceOf(lendingAddress);
+    const contractBalance = await mockETH.balanceOf(lendingAddress);
 
     expect(userBalance).to.equal(depositAmount);
     expect(contractBalance).to.equal(depositAmount);
@@ -75,6 +81,9 @@ describe("LendingProtocol", () => {
     });
 
     it("should emit CollateralDeposited", async () => {
+        const lendingAddress = await lending.getAddress();
+        await mockETH.connect(user).approve(lendingAddress, amount);
+
         await expect(
             lending.connect(user).depositCollateral(amount)
         ).to.emit(lending, "CollateralDeposited").withArgs(user.address, amount);
@@ -84,6 +93,9 @@ describe("LendingProtocol", () => {
     it("should allow user to borrow if collateral is sufficent", async () => {
         const depositAmount = ethers.parseUnits("1500", 18); 
         const borrowAmount = ethers.parseUnits("1000", 18);
+        const lendingAddress = await lending.getAddress();
+
+        await mockETH.connect(user).approve(lendingAddress, depositAmount);
 
         await depositFromUser(depositAmount);
         await MockV3.updateAnswer("100000000"); 
@@ -92,12 +104,15 @@ describe("LendingProtocol", () => {
         const debt = await lending.debtOf(user.address);
         const userUSDCBalance = await mockUSDC.balanceOf(user.address);
         expect(debt).to.equal(borrowAmount);
-        expect(userUSDCBalance).to.equal(depositAmount);
+        expect(userUSDCBalance).to.equal(amount + borrowAmount);
     });
    
     it("should revert if user tries to borrow without enough collateral", async () => {
         const smallAmount = ethers.parseUnits("100", 18);
+        const lendingAddress = await lending.getAddress();
+
         await MockV3.updateAnswer("100000000");
+        await mockETH.connect(user).approve(lendingAddress, smallAmount);
         await depositFromUser(smallAmount); 
         await expect(
            lending.connect(user).borrow(smallAmount)
@@ -106,6 +121,8 @@ describe("LendingProtocol", () => {
 
     it("should emit Borrowed", async () => {
         const borrowAmount = ethers.parseUnits("1000", 18);
+        const lendingAddress = await lending.getAddress();
+        await mockETH.connect(user).approve(lendingAddress, amount);
         await depositFromUser(amount);
         await expect(
             lending.connect(user).borrow(borrowAmount)
@@ -113,6 +130,9 @@ describe("LendingProtocol", () => {
     });
 
     it("should return max uint256 if debt is 0", async () => {
+        const lendingAddress = await lending.getAddress();
+
+        await mockETH.connect(user).approve(lendingAddress, amount);
         await depositFromUser(amount);
 
         const health = await lending.getAccountHealth(user.address);
@@ -122,7 +142,7 @@ describe("LendingProtocol", () => {
     it("should return collateral/debt ratio if debt > 0", async () => {
         const lendingAddress = await lending.getAddress();
 
-        await mockUSDC.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
+        await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
         await depositFromUser(ethers.parseUnits("1500", 18));
         await borrowFromUser(ethers.parseUnits("1000", 18));
 
@@ -136,7 +156,11 @@ describe("LendingProtocol", () => {
 
     it("Should calculate correct borrowable value", async () => {
         await MockV3.updateAnswer("100000000");
+        const lendingAddress = await lending.getAddress();
+        
         const rawDeposit = ethers.parseUnits("1500", 18);
+
+        await mockETH.connect(user).approve(lendingAddress, rawDeposit);
         await depositFromUser(rawDeposit);
         const borrowable = await lending.getBorrowableAmount(user.address);
         const expectedBorrowable = rawDeposit * 100n / 150n;
@@ -146,6 +170,8 @@ describe("LendingProtocol", () => {
 
     it("Should correct tuple(collateral, debt, borrowable)", async () => {
         await MockV3.updateAnswer("100000000");
+        const lendingAddress = await lending.getAddress();
+        await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
         await depositFromUser(ethers.parseUnits("1500", 18));
         await borrowFromUser(ethers.parseUnits("1000", 18));
 
@@ -161,6 +187,9 @@ describe("LendingProtocol", () => {
 
     it("Should revert if pice drop in Chainlink", async () => {
         await MockV3.updateAnswer("100000000");
+        const lendingAddress = await lending.getAddress();
+
+        await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
         await depositFromUser(ethers.parseUnits("1500", 18));
         await MockV3.updateAnswer("50000000");
         const borrowAmount = ethers.parseUnits("1000", 18);
