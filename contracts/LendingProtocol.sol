@@ -8,14 +8,7 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 interface IMintableERC20 is IERC20 {
         function mint(address to, uint256 amount) external;
     } 
-
-// Future Improvement 
-// Currently, the same token (MockUSDC) is used for both collateral and debt.
-// In a real-world DeFi lending protocol, these should be separate assets.
-// - collateralToken: e.g., ETH, WBTC
-// - debtToken: e.g., USDC, DAI (minted via IMintableERC20)
-// Will be refactor in a later sprint to separate these concerns for better realism, extensibility, and security.
-
+    
 contract LendingProtocol {
     using SafeERC20 for IERC20; 
 
@@ -30,21 +23,23 @@ contract LendingProtocol {
 
     IMintableERC20 public mUsdcMintable;
     IERC20 public mUsdc;
+    IERC20 public mEth;
     mapping (address => uint256) public balanceOf;
     mapping(address => uint256) public debtOf;
     AggregatorV3Interface public priceFeed;
 
 
-    constructor(address usdcAddress, address _priceFeed) {
+    constructor(address usdcAddress, address ethAddress , address _priceFeed) {
         mUsdc = IERC20(usdcAddress);
         mUsdcMintable = IMintableERC20(usdcAddress);
+        mEth = IERC20(ethAddress);
         priceFeed = AggregatorV3Interface(_priceFeed);
         oracleDecimals = priceFeed.decimals();
     }
 
     function depositCollateral(uint256 amount) external {
         require(amount > 0, "Amount must be more than 0");
-        mUsdc.safeTransferFrom(msg.sender, address(this), amount); 
+        mEth.safeTransferFrom(msg.sender, address(this), amount); 
         
         balanceOf[msg.sender] += amount;
         emit CollateralDeposited(msg.sender, amount);
@@ -106,22 +101,22 @@ contract LendingProtocol {
     }
 
     function liquidate(address user, uint256 repayAmount) external {
-        require(repayAmount <= debtOf[user], "Repay amount exceeed debt");
+        require(repayAmount <= debtOf[user], "Repay amount exceeds user's debt");
         require(isLiquidatable(user), "Account is not liquidatable");
 
-        // Transfer USDC from liquidator to contract
-        mUsdc.safeTransferFrom(msg.sender, address(this), repayAmount);
+        // Transfer mETH from liquidator to contract
+        mEth.safeTransferFrom(msg.sender, address(this), repayAmount);
 
         // Burn user debt
         debtOf[user] -= repayAmount;
 
         // Calculate collateral reward 
         uint256 reward = repayAmount * 105 / 100;
-        require(balanceOf[user] >= reward, "Insufficent collateral");
+        require(balanceOf[user] >= reward, "Insufficent collateral to reward liquidator");
 
         // Transfer collateral reward to liquidator
         balanceOf[user] -= reward;
-        mUsdc.safeTransfer(msg.sender, reward);
+        mEth.safeTransfer(msg.sender, reward);
 
         emit Liquidated(user, msg.sender, repayAmount, reward);
     }
