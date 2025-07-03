@@ -75,3 +75,28 @@ This ensures that both price and collateral have the same decimals before calcul
 - The collateral asset uses 18 decimals.
 
 - The system is not resilient yet to Chainlink feed outages — fallback logic is deferred to a future sprint.
+
+### 🧱 Token Architecture Refactor
+To increase realism and extensibility, the protocol now uses two distinct tokens:
+
+- Collateral Token: MockETH (deposited by users to secure loans)
+
+- Debt Token: MockUSDC (minted when borrowing, repaid during liquidation)
+
+This replaces the earlier version where a single token (MockUSDC) was used for both collateral and debt.
+
+### 🔄 Key Changes
+- depositCollateral() now accepts MockETH, not USDC.
+
+- borrow() still mints USDC (debt token) to the user.
+
+- liquidate() transfers USDC from the liquidator and rewards them in ETH.
+
+- Chainlink price feed is used to price ETH in USD for collateral valuation.
+
+### 📦 Why This Matters
+- Mirrors real-world DeFi design 
+
+- Prevents circular token logic
+
+- Enables clearer security boundaries and future token support
