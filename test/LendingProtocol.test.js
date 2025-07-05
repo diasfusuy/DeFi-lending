@@ -3,10 +3,10 @@ const { ethers } = require("hardhat");
 const { MaxUint256 } =require ("ethers");
 
 describe("LendingProtocol", () => {
-    let lending, mockUSDC, mockETH, owner, user, amount; 
+    let lending, mockUSDC, mockETH, owner, user, amount, liquidator; 
 
     beforeEach(async () => {
-    [owner, user] = await ethers.getSigners();
+    [owner, user, liquidator] = await ethers.getSigners();
 
     // 1. Deploy MockUSDC with 'owner' as the initial owner
     const MockUSDCFactory = await ethers.getContractFactory("MockUSDC");
@@ -45,6 +45,7 @@ describe("LendingProtocol", () => {
 
     // 4. Transfer ownership of MockUSDC to LendingProtocol
     await mockUSDC.connect(owner).transferOwnership(await lending.getAddress());
+    await mockETH.connect(owner).mint(liquidator.address, ethers.parseUnits("1000", 18));
     await mockETH.connect(owner).transferOwnership(await lending.getAddress());
     });
 
@@ -89,7 +90,6 @@ describe("LendingProtocol", () => {
         ).to.emit(lending, "CollateralDeposited").withArgs(user.address, amount);
     });
 
-    
     it("should allow user to borrow if collateral is sufficent", async () => {
         const depositAmount = ethers.parseUnits("1500", 18); 
         const borrowAmount = ethers.parseUnits("1000", 18);
@@ -195,5 +195,86 @@ describe("LendingProtocol", () => {
         const borrowAmount = ethers.parseUnits("1000", 18);
         
         expect(borrowFromUser(borrowAmount)).to.be.revertedWith("Less than required");
+    });
+
+    it("should return true for isLiquidatable when price drops", async () => {
+        const lendingAddress = await lending.getAddress();
+        
+        await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
+        await depositFromUser(ethers.parseUnits("1500", 18));
+        await borrowFromUser(ethers.parseUnits("1000", 18));
+        await MockV3.updateAnswer("50000000"); 
+
+        const liquidatable = await lending.isLiquidatable(user.address);
+        
+        expect(liquidatable).to.be.true;
+    });
+
+    it("Should revert if acount is healthy", async () => {
+        const lendingAddress = await lending.getAddress();
+
+        await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
+        await depositFromUser(ethers.parseUnits("1500", 18));
+        await borrowFromUser(ethers.parseUnits("1000", 18));
+        await mockETH.connect(liquidator).approve(lendingAddress, ethers.parseUnits("1000", 18));
+        
+        await expect(
+        lending.connect(liquidator).liquidate(user.address, ethers.parseUnits("1000", 18))
+        ).to.be.revertedWith("Account is not liquidatable");
+    });
+
+    it("should allow partial liquidation and update balances correctly", async () => {
+        const lendingAddress = await lending.getAddress();
+
+        await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
+        await depositFromUser(ethers.parseUnits("1500", 18));
+        await borrowFromUser(ethers.parseUnits("1000", 18));
+        await MockV3.updateAnswer("50000000"); 
+
+        await mockETH.connect(liquidator).approve(lendingAddress, (ethers.parseUnits("500", 18)));
+        const beforeCollateral = await mockETH.balanceOf(liquidator.address);
+
+        await lending.connect(liquidator).liquidate(user.address, (ethers.parseUnits("500", 18)));
+        const afterCollateral = await mockETH.balanceOf(liquidator.address);
+        const debtAfter = await lending.debtOf(user.address);
+        const collateralAfter = await lending.balanceOf(user.address);
+        const expectedReward = (ethers.parseUnits("500", 18)) * 105n / 100n;
+
+        expect(afterCollateral).to.equal(beforeCollateral - ethers.parseUnits("500", 18) + expectedReward);
+        expect(debtAfter).to.equal((ethers.parseUnits("500", 18))); 
+        expect(collateralAfter).to.equal(ethers.parseUnits("1500", 18) - expectedReward);
+    });
+
+    it("Should revert if repayAmount exceeds user's debt", async () => {
+        const lendingAddress = await lending.getAddress();
+
+        await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
+        await depositFromUser(ethers.parseUnits("1500", 18));
+        await borrowFromUser(ethers.parseUnits("500", 18));
+        await MockV3.updateAnswer("50000000"); 
+        await mockETH.connect(liquidator).approve(lendingAddress, ethers.parseUnits("600", 18)); 
+        
+        await expect(
+        lending.connect(liquidator).liquidate(user.address, ethers.parseUnits("600", 18))
+        ).to.be.revertedWith("Repay amount exceeds user's debt");
+    });
+
+    it("Should revert if user's collateral is insufficient to reward liquidator", async () => {
+        lendingAddress = await lending.getAddress();
+        const userInitialCollateral = ethers.parseUnits("50", 18);
+        const borrowAmount = ethers.parseUnits("60", 18);
+
+        await mockETH.connect(user).approve(lendingAddress, userInitialCollateral);
+        await depositFromUser(userInitialCollateral);
+        await MockV3.updateAnswer("200000000");
+        await borrowFromUser(borrowAmount);
+        await MockV3.updateAnswer("10000000");
+        
+        const liquidateAmount = ethers.parseUnits("1", 18);
+        await mockUSDC.connect(liquidator).approve(lendingAddress, liquidateAmount);
+        
+        await expect(
+        lending.connect(liquidator).liquidate(user.address, liquidateAmount) 
+        ).to.be.reverted;
     });
 });

@@ -76,14 +76,21 @@ contract LendingProtocol {
         return borrowable;
     }
 
-    function getAccountHealth(address user) public view returns(uint256) {
-        uint256 collateral = balanceOf[user];
-        uint256 debt = debtOf[user];
+    function getAccountHealth(address user) public view returns (uint256) {
+    uint256 collateral = balanceOf[user];
+    uint256 debt = debtOf[user];
 
-        if ( debt == 0) {
-           return type(uint256).max;
-        } 
-        return collateral * 100 / debt;        
+    if (debt == 0) {
+        return type(uint256).max;
+    }
+
+    (, int256 price,,,) = priceFeed.latestRoundData(); // ETH/USD
+    uint8 decimals = priceFeed.decimals();
+    uint256 adjustedPrice = uint256(price) * 1e18 / (10 ** decimals);
+
+    uint256 collateralValueInUSD = collateral * adjustedPrice / 1e18;
+
+    return collateralValueInUSD * 100 / debt;
     }
 
     // Fetches latest price
