@@ -297,4 +297,39 @@ describe("LendingProtocol", () => {
         const userCollateral = await lending.balanceOf(user.address);
         expect(userCollateral).to.equal(ethers.parseUnits("1500", 18) - reward);
     });
+
+    it("Should emit liquidated event with correct parameters", async () => {
+        lendingAddress = await lending.getAddress();
+
+        await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
+        await depositFromUser(ethers.parseUnits("1500", 18));
+        await borrowFromUser(ethers.parseUnits("1000", 18));
+        await MockV3.updateAnswer("50000000");
+        await mockUSDC.connect(liquidator).approve(lendingAddress, ethers.parseUnits("1000", 18));
+
+        const repayAmount = ethers.parseUnits("1000", 18);
+        const expectedReward = repayAmount * 105n / 100n;
+
+        await expect(
+            lending.connect(liquidator).liquidate(user.address, repayAmount)
+        ).to.emit(lending, "Liquidated").withArgs(
+            user.address,
+            liquidator.address,
+            repayAmount,
+            expectedReward
+        );
+    });
+
+    it("Should prevent liquidation if health factor is above 1", async () => {
+        lendingAddress = await lending.getAddress();
+
+        await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
+        await depositFromUser(ethers.parseUnits("1500", 18));
+        await borrowFromUser(ethers.parseUnits("500", 18));
+        await MockV3.updateAnswer("50000000");
+
+        await expect(
+            lending.connect(liquidator).liquidate(user.address, ethers.parseUnits("500", 18))
+        ).to.be.revertedWith("Account is not liquidatable");
+    });
 });
