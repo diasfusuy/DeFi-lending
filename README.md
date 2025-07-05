@@ -100,3 +100,14 @@ This replaces the earlier version where a single token (MockUSDC) was used for b
 - Prevents circular token logic
 
 - Enables clearer security boundaries and future token support
+
+## 💥 Liquidation Mechanism
+
+To ensure solvency and protect lenders, the protocol supports liquidation of undercollateralized positions.
+
+### When Liquidation Happens
+If a user’s **collateral-to-debt ratio** drops below a safety threshold (e.g., health factor < 1), their position becomes **liquidatable**.
+
+This is determined using:
+```solidity
+getAccountHealth(address) < 100
