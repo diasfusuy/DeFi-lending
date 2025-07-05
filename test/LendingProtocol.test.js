@@ -31,6 +31,8 @@ describe("LendingProtocol", () => {
     amount = ethers.parseUnits("2000", 18);
     await mockETH.connect(owner).mint(user.address, amount);
     await mockUSDC.connect(owner).mint(user.address, amount);
+    await mockUSDC.connect(owner).mint(liquidator.address, ethers.parseUnits("1000", 18));
+
 
     // 3. Deploy LendingProtocol with mockUSDC address
     const LendingProtocolFactory = await ethers.getContractFactory("LendingProtocol");
@@ -231,7 +233,7 @@ describe("LendingProtocol", () => {
         await borrowFromUser(ethers.parseUnits("1000", 18));
         await MockV3.updateAnswer("50000000"); 
 
-        await mockETH.connect(liquidator).approve(lendingAddress, (ethers.parseUnits("500", 18)));
+        await mockUSDC.connect(liquidator).approve(lendingAddress, (ethers.parseUnits("500", 18)));
         const beforeCollateral = await mockETH.balanceOf(liquidator.address);
 
         await lending.connect(liquidator).liquidate(user.address, (ethers.parseUnits("500", 18)));
@@ -240,7 +242,7 @@ describe("LendingProtocol", () => {
         const collateralAfter = await lending.balanceOf(user.address);
         const expectedReward = (ethers.parseUnits("500", 18)) * 105n / 100n;
 
-        expect(afterCollateral).to.equal(beforeCollateral - ethers.parseUnits("500", 18) + expectedReward);
+        expect(afterCollateral).to.equal(beforeCollateral + expectedReward);
         expect(debtAfter).to.equal((ethers.parseUnits("500", 18))); 
         expect(collateralAfter).to.equal(ethers.parseUnits("1500", 18) - expectedReward);
     });
@@ -259,22 +261,40 @@ describe("LendingProtocol", () => {
         ).to.be.revertedWith("Repay amount exceeds user's debt");
     });
 
-    it("Should revert if user's collateral is insufficient to reward liquidator", async () => {
+    it("Should revert if account is not liquidatable", async () => {
         lendingAddress = await lending.getAddress();
-        const userInitialCollateral = ethers.parseUnits("50", 18);
-        const borrowAmount = ethers.parseUnits("60", 18);
+        await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
+        await depositFromUser(ethers.parseUnits("1500", 18));
+        await borrowFromUser(ethers.parseUnits("1000", 18));
 
-        await mockETH.connect(user).approve(lendingAddress, userInitialCollateral);
-        await depositFromUser(userInitialCollateral);
-        await MockV3.updateAnswer("200000000");
-        await borrowFromUser(borrowAmount);
-        await MockV3.updateAnswer("10000000");
-        
-        const liquidateAmount = ethers.parseUnits("1", 18);
-        await mockUSDC.connect(liquidator).approve(lendingAddress, liquidateAmount);
-        
+        await mockUSDC.connect(liquidator).approve(lendingAddress, ethers.parseUnits("500", 18));
+
         await expect(
-        lending.connect(liquidator).liquidate(user.address, liquidateAmount) 
-        ).to.be.reverted;
+            lending.connect(liquidator).liquidate(user.address, ethers.parseUnits("500", 18))
+        ).to.be.revertedWith("Account is not liquidatable");
+    });
+
+    it("Should alllow full liquidation and transfer correct reward to liquidator", async () => {
+        lendingAddress = await lending.getAddress();
+
+        await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
+        await depositFromUser(ethers.parseUnits("1500", 18));
+        await borrowFromUser(ethers.parseUnits("1000", 18));
+        await MockV3.updateAnswer("50000000");
+        await mockUSDC.connect(liquidator).approve(lendingAddress, ethers.parseUnits("1000", 18));
+
+        const before = await mockETH.balanceOf(liquidator.address);
+        await lending.connect(liquidator).liquidate(user.address, ethers.parseUnits("1000", 18));
+
+        const after = await mockETH.balanceOf(liquidator.address);
+        const reward = ethers.parseUnits("1000", 18) * 105n / 100n;
+
+        expect(after - before).to.equal(reward);
+
+        const userDebt = await lending.debtOf(user.address);
+        expect(userDebt).to.equal(0);
+
+        const userCollateral = await lending.balanceOf(user.address);
+        expect(userCollateral).to.equal(ethers.parseUnits("1500", 18) - reward);
     });
 });

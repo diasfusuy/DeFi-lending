@@ -4,6 +4,7 @@ pragma solidity ^0.8.27;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "hardhat/console.sol";
 
 interface IMintableERC20 is IERC20 {
         function mint(address to, uint256 amount) external;
@@ -114,13 +115,16 @@ contract LendingProtocol {
         require(isLiquidatable(user), "Account is not liquidatable");
 
         // Transfer mETH from liquidator to contract
-        mEth.safeTransferFrom(msg.sender, address(this), repayAmount);
+        mUsdc.safeTransferFrom(msg.sender, address(this), repayAmount);
 
         // Burn user debt
         debtOf[user] -= repayAmount;
 
         // Calculate collateral reward 
         uint256 reward = repayAmount * 105 / 100;
+        console.log("User balance: %s", balanceOf[user]);
+        console.log("Reward needed: %s", reward);
+
         require(balanceOf[user] >= reward, "Insufficent collateral to reward liquidator");
 
         // Transfer collateral reward to liquidator
