@@ -19,6 +19,20 @@
   padding: 0.5rem;
 }
 
+.overview {
+  justify-content: flex-start;
+}
+
+h3 {
+  font-size: 1.2rem;
+  color: blueviolet;
+}
+
+p {
+  font-size: smaller;
+  color: black;
+}
+
 .top-bar {
   display: flex;
   justify-content: flex-end;
