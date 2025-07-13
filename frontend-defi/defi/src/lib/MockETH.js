@@ -1,4 +1,6 @@
-export const ERC20_ABI = [
+export const MockETH_Address = "0xb68a28F08Ff72276762D81C285406407742793b2";
+
+export const MockETH_ABI = 
 [
     {
       "inputs": [
@@ -622,10 +624,3 @@ export const ERC20_ABI = [
       "type": "function"
     }
   ]
-]
-  
-
-export const TOKEN_ADDRESSES = {
-  MockUSDC: "0x83dAAEFeBc8F5c185A64BfF5fff4599CC7D2D973", 
-  MockETH: "0x0368b5D8BbB6488200F3222d9452708ad9F52177",
-};
