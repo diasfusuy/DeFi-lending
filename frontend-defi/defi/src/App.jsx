@@ -8,7 +8,6 @@ import {Lending_ABI, Lending_Address }  from "./lib/LendingProtocol.js";
 import { useReadContract } from 'wagmi';
 import { polygonAmoy } from "viem/chains";
 import { formatUnits, parseUnits } from 'viem';
-import { writeContract } from "viem/actions";
 import { useState } from "react";
 
 function App() {
@@ -18,6 +17,12 @@ function App() {
   });
   
   const [depositAmount, setDepositAmount] = useState(''); 
+
+  const [borrowAmount, setBorrowAmount] = useState('');
+
+  const [targetUser, setTargetUser] = useState('');
+
+  const [repayAmount, setRepayAmount] = useState('');
 
   const chainId = useChainId({
     wagmiConfig,
@@ -50,20 +55,29 @@ const { data: ethBalance } = useReadContract({
   query: { enabled: !!account.address }
 });
 
-const { writeContractAsync } = useWriteContract();
+const {data: healthFactor } = useReadContract({
+  abi: Lending_ABI,
+  address: Lending_Address,
+  functionName: 'getAccountHealth',
+  args: [account.address],
+  chainId: polygonAmoy.id,
+  query: { enabled: !!account.address},
+});
+
+const { writeContract} = useWriteContract();
 
 const handleDeposit = async () => {
   const parsedAmount = parseUnits(depositAmount, 18);
 
 try{
-  await writeContractAsync({
+  await writeContract({
   abi: ERC20_ABI,
   address:TOKEN_ADDRESSES.MockETH,
   functionName: 'approve',
   args: [Lending_Address, parsedAmount],
 });
 
-await writeContractAsync({
+await writeContract({
   abi: Lending_ABI,
   address: Lending_Address,
   functionName: 'depositCollateral',
@@ -74,6 +88,49 @@ await writeContractAsync({
     setDepositAmount('');
   } catch (err) {
     console.error("Deposit failed:", err);
+  }
+};
+
+const handleBorrow = async () => {
+  try {
+    const parsedAmount = parseUnits(borrowAmount, 18);
+
+    await writeContract({
+      abi: Lending_ABI,
+      address:Lending_Address,
+      functionName: 'borrow',
+      args: [parsedAmount],
+    });
+
+    refetchSummary?.();
+    setBorrowAmount('');
+  } catch (err) {
+    console.error("Borrow failed", err);
+  }
+};
+
+const handleLiquidate = async () => {
+  try {
+    const parsedAmount = parseUnits(repayAmount, 18);
+
+    await writeContract({
+      abi: ERC20_ABI,
+      address: TOKEN_ADDRESSES.MockUSDC,
+      functionName: 'approve',
+      args: [Lending_Address, parsedAmount],
+    });
+    
+    await writeContract ({
+      abi: Lending_ABI,
+      address: Lending_Address,
+      functionName: 'liquidate',
+      args: [targetUser, parsedAmount],
+    });
+     refetchSummary?.();
+      setRepayAmount('');
+      setTargetUser('');
+  } catch (err) {
+    console.error("Liquidation failed:", err);
   }
 };
 
@@ -89,12 +146,12 @@ await writeContractAsync({
         <p>mETH: {ethBalance?.data ? formatUnits(ethBalance.data, 18) : "0"}</p>
         <p>mUSDC: {usdcBalance?.data ? formatUnits(usdcBalance.data, 6) : "0"}</p>
       </div>
-
+      <h1>DeFi Lending App</h1>
       <div className="main-content">
-        <h1>DeFi Lending App</h1>
         <p>Collateral: {accountSummary ? formatUnits(accountSummary[0], 18) : "..."}</p>
         <p>Debt: {accountSummary ? formatUnits(accountSummary[1], 18) : "..."}</p>
         <p>Borrowable: {accountSummary ? formatUnits(accountSummary[2], 18) : "..."}</p>
+        <p>Health Factor: {healthFactor ? formatUnits(healthFactor, 2) : "..."}</p>
         <div className="mt-4 flex flex-col items-center">
             <input
               type="number"
@@ -110,6 +167,43 @@ await writeContractAsync({
             >
               Deposit mETH
             </button>
+      </div>
+      <div className="mt-4 flex flex-col items-center">
+          <input
+            type="number"
+            placeholder="Amount to borrow"
+            value={borrowAmount}
+            onChange={(e) => setBorrowAmount(e.target.value)}
+            className="mb-2 px-2 py-1 border rounded"
+          />
+          <button
+            onClick={handleBorrow}
+            className="bg-purple-400 text-white px-4 py-1 rounded hover:bg-purple-600"
+          >
+            Borrow mUSDC
+          </button>
+      </div>
+      <div className="mt-4 flex flex-col items-center">
+          <input
+            type="text"
+            placeholder="User address to liquidate"
+            value={targetUser}
+            onChange={(e) => setTargetUser(e.target.value)}
+            className="mb-2 px-2 py-1 border rounded w-80"
+          />
+          <input
+            type="number"
+            placeholder="Amount to repay"
+            value={repayAmount}
+            onChange={(e) => setRepayAmount(e.target.value)}
+            className="mb-2 px-2 py-1 border rounded"
+          />
+          <button
+            onClick={handleLiquidate}
+            className="bg-red-500 text-white px-4 py-1 rounded hover:bg-red-700"
+          >
+            Liquidate
+          </button>
       </div>
       </div>
     </div>

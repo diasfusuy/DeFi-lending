@@ -52,5 +52,7 @@ p {
 h1 {
   font-size: 2.5rem;
   color: palevioletred;
-  margin-bottom: 1rem;
+  margin-top: 1rem;
+  justify-content:flex-start;
+  text-align: center;
 }
