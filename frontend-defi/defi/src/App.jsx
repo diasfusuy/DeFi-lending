@@ -3,12 +3,14 @@ import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { useAccount, useWriteContract } from "wagmi";
 import { useChainId } from "wagmi";
 import { wagmiConfig } from "./lib/wagmi.js";
-import { ERC20_ABI, TOKEN_ADDRESSES } from './lib/tokens';
+import { MockETH_ABI, MockETH_Address } from './lib/MockETH.js';
+import { MockUSDC_ABI, MockUSDC_Address } from "./lib/MockUSDC.js";
 import {Lending_ABI, Lending_Address }  from "./lib/LendingProtocol.js";
 import { useReadContract } from 'wagmi';
 import { polygonAmoy } from "viem/chains";
 import { formatUnits, parseUnits } from 'viem';
 import { useState } from "react";
+import { MaxUint256 } from "ethers";
 
 function App() {
 
@@ -38,8 +40,8 @@ function App() {
 });
 
   const { data: usdcBalance } = useReadContract({
-  abi: ERC20_ABI,
-  address: TOKEN_ADDRESSES.MockUSDC,
+  abi: MockUSDC_ABI,
+  address: MockUSDC_Address.MockUSDC,
   functionName: "balanceOf",
   args: [account.address],
   chainId: polygonAmoy.id,
@@ -47,8 +49,8 @@ function App() {
 });
 
 const { data: ethBalance } = useReadContract({
-  abi: ERC20_ABI,
-  address: TOKEN_ADDRESSES.MockETH.address,
+  abi: MockETH_ABI,
+  address: MockETH_Address,
   functionName: "balanceOf",
   args: [account.address],
   chainId: polygonAmoy.id,
@@ -71,8 +73,8 @@ const handleDeposit = async () => {
 
 try{
   await writeContract({
-  abi: ERC20_ABI,
-  address:TOKEN_ADDRESSES.MockETH,
+  abi: MockETH_ABI,
+  address: MockETH_Address.MockETH,
   functionName: 'approve',
   args: [Lending_Address, parsedAmount],
 });
@@ -114,8 +116,8 @@ const handleLiquidate = async () => {
     const parsedAmount = parseUnits(repayAmount, 18);
 
     await writeContract({
-      abi: ERC20_ABI,
-      address: TOKEN_ADDRESSES.MockUSDC,
+      abi: MockUSDC_ABI,
+      address: MockUSDC_Address.MockUSDC,
       functionName: 'approve',
       args: [Lending_Address, parsedAmount],
     });
@@ -151,7 +153,14 @@ const handleLiquidate = async () => {
         <p>Collateral: {accountSummary ? formatUnits(accountSummary[0], 18) : "..."}</p>
         <p>Debt: {accountSummary ? formatUnits(accountSummary[1], 18) : "..."}</p>
         <p>Borrowable: {accountSummary ? formatUnits(accountSummary[2], 18) : "..."}</p>
-        <p>Health Factor: {healthFactor ? formatUnits(healthFactor, 2) : "..."}</p>
+        <p>
+          Health Factor:{" "}
+          {healthFactor
+            ? healthFactor.toString() === MaxUint256.toString()
+              ? "∞"
+              : formatUnits(healthFactor, 2)
+            : "..."}
+        </p>
         <div className="mt-4 flex flex-col items-center">
             <input
               type="number"
