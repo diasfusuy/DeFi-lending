@@ -41,7 +41,7 @@ function App() {
 
   const { data: usdcBalance } = useReadContract({
   abi: MockUSDC_ABI,
-  address: MockUSDC_Address.MockUSDC,
+  address: MockUSDC_Address,
   functionName: "balanceOf",
   args: [account.address],
   chainId: polygonAmoy.id,
@@ -74,7 +74,7 @@ const handleDeposit = async () => {
 try{
   await writeContract({
   abi: MockETH_ABI,
-  address: MockETH_Address.MockETH,
+  address: MockETH_Address,
   functionName: 'approve',
   args: [Lending_Address, parsedAmount],
 });
@@ -117,7 +117,7 @@ const handleLiquidate = async () => {
 
     await writeContract({
       abi: MockUSDC_ABI,
-      address: MockUSDC_Address.MockUSDC,
+      address: MockUSDC_Address,
       functionName: 'approve',
       args: [Lending_Address, parsedAmount],
     });
@@ -141,6 +141,7 @@ const handleLiquidate = async () => {
       <div className="top-bar">
         <ConnectButton />
       </div>
+      <div className="absolute top-4 left-4 p-4 rounded z-10">
       <div className="overview">
         <h3>Wallet Overview</h3>
         <p>Address: {account.address} </p>
@@ -148,8 +149,9 @@ const handleLiquidate = async () => {
         <p>mETH: {ethBalance?.data ? formatUnits(ethBalance.data, 18) : "0"}</p>
         <p>mUSDC: {usdcBalance?.data ? formatUnits(usdcBalance.data, 6) : "0"}</p>
       </div>
-      <h1>DeFi Lending App</h1>
+      </div>
       <div className="main-content">
+        <h1>DeFi Lending App</h1>
         <p>Collateral: {accountSummary ? formatUnits(accountSummary[0], 18) : "..."}</p>
         <p>Debt: {accountSummary ? formatUnits(accountSummary[1], 18) : "..."}</p>
         <p>Borrowable: {accountSummary ? formatUnits(accountSummary[2], 18) : "..."}</p>
@@ -161,33 +163,33 @@ const handleLiquidate = async () => {
               : formatUnits(healthFactor, 2)
             : "..."}
         </p>
-        <div className="mt-4 flex flex-col items-center">
+        <div className="mt-4 flex flex-col items-center mb-5">
             <input
               type="number"
               placeholder="Amount to deposit"
               value={depositAmount}
               onChange={(e) => setDepositAmount(e.target.value)}
-              className="mb-2 px-2 py-1 border rounded"
+              className="mb-2 px-2 py-1 border rounded w-60"
             />
             <button
               onClick={handleDeposit}
               disabled={!depositAmount}
-              className="bg-pink-400 text-white px-4 py-1 rounded hover:bg-pink-600 disabled:opacity-50"
+              className="bg-pink-400 text-white px-4 py-1 rounded w-40 hover:bg-pink-600 disabled:opacity-50"
             >
               Deposit mETH
             </button>
       </div>
-      <div className="mt-4 flex flex-col items-center">
+      <div className="mt-4 flex flex-col items-center mb-5">
           <input
             type="number"
             placeholder="Amount to borrow"
             value={borrowAmount}
             onChange={(e) => setBorrowAmount(e.target.value)}
-            className="mb-2 px-2 py-1 border rounded"
+            className="mb-2 px-2 py-1 border rounded w-60"
           />
           <button
             onClick={handleBorrow}
-            className="bg-purple-400 text-white px-4 py-1 rounded hover:bg-purple-600"
+            className="bg-purple-400 text-white px-4 py-1 rounded w-40 hover:bg-purple-600"
           >
             Borrow mUSDC
           </button>
@@ -198,18 +200,18 @@ const handleLiquidate = async () => {
             placeholder="User address to liquidate"
             value={targetUser}
             onChange={(e) => setTargetUser(e.target.value)}
-            className="mb-2 px-2 py-1 border rounded w-80"
+            className="mb-2 px-2 py-1 border rounded w-60"
           />
           <input
             type="number"
             placeholder="Amount to repay"
             value={repayAmount}
             onChange={(e) => setRepayAmount(e.target.value)}
-            className="mb-2 px-2 py-1 border rounded"
+            className="mb-2 px-2 py-1 border rounded w-60"
           />
           <button
             onClick={handleLiquidate}
-            className="bg-red-500 text-white px-4 py-1 rounded hover:bg-red-700"
+            className="bg-red-500 text-white px-4 py-1 rounded w-40 hover:bg-red-700"
           >
             Liquidate
           </button>
