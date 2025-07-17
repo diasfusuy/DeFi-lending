@@ -30,7 +30,7 @@ function App() {
     wagmiConfig,
   });
 
-  const { data: accountSummary, refetch: refetchSummary, } = useReadContract({
+  const { data: accountSummary, isLoading, error, refetch: refetchSummary, } = useReadContract({
   abi: Lending_ABI,
   address: Lending_Address,
   functionName: 'getAccountSummary',
@@ -38,6 +38,11 @@ function App() {
   chainId: polygonAmoy.id,
   query: { enabled: !!account.address }
 });
+console.log("account.address:", account.address);
+console.log("accountSummary:", accountSummary);
+console.log("accountSummary error:", error);
+
+
 
   const { data: usdcBalance } = useReadContract({
   abi: MockUSDC_ABI,
@@ -66,12 +71,19 @@ const {data: healthFactor } = useReadContract({
   query: { enabled: !!account.address},
 });
 
+console.log("healthFactor:", healthFactor);
+
 const { writeContract} = useWriteContract();
 
 const handleDeposit = async () => {
-  const parsedAmount = parseUnits(depositAmount, 18);
+
+if (!depositAmount || Number(depositAmount) <= 0) {
+  alert("Enter amount > 0");
+  return;
+}
 
 try{
+  const parsedAmount = parseUnits(depositAmount, 18);
   await writeContract({
   abi: MockETH_ABI,
   address: MockETH_Address,
@@ -93,7 +105,15 @@ await writeContract({
   }
 };
 
+console.log("Borrow amount:", borrowAmount);
+
+
 const handleBorrow = async () => {
+  if (!borrowAmount || Number(borrowAmount) <= 0) {
+  alert("Enter amount > 0");
+  return;
+}
+
   try {
     const parsedAmount = parseUnits(borrowAmount, 18);
 
@@ -112,6 +132,12 @@ const handleBorrow = async () => {
 };
 
 const handleLiquidate = async () => {
+
+  if (!repayAmount || Number(repayAmount) <= 0) {
+  alert("Enter amount > 0");
+  return;
+}
+
   try {
     const parsedAmount = parseUnits(repayAmount, 18);
 
@@ -136,6 +162,7 @@ const handleLiquidate = async () => {
   }
 };
 
+
   return (
     <div className="app-wrapper">
       <div className="top-bar">
@@ -146,23 +173,24 @@ const handleLiquidate = async () => {
         <h3>Wallet Overview</h3>
         <p>Address: {account.address} </p>
         <p>Chain: {chainId}</p>
-        <p>mETH: {ethBalance?.data ? formatUnits(ethBalance.data, 18) : "0"}</p>
-        <p>mUSDC: {usdcBalance?.data ? formatUnits(usdcBalance.data, 6) : "0"}</p>
+        <p>mETH: {ethBalance? formatUnits(ethBalance, 18) : "0"}</p>
+        <p>mUSDC: {usdcBalance ? Number(formatUnits(usdcBalance, 18)).toLocaleString(undefined, { maximumFractionDigits: 4 }) : "0"}</p>
+
       </div>
       </div>
       <div className="main-content">
         <h1>DeFi Lending App</h1>
-        <p>Collateral: {accountSummary ? formatUnits(accountSummary[0], 18) : "..."}</p>
-        <p>Debt: {accountSummary ? formatUnits(accountSummary[1], 18) : "..."}</p>
-        <p>Borrowable: {accountSummary ? formatUnits(accountSummary[2], 18) : "..."}</p>
-        <p>
-          Health Factor:{" "}
-          {healthFactor
-            ? healthFactor.toString() === MaxUint256.toString()
-              ? "∞"
-              : formatUnits(healthFactor, 2)
-            : "..."}
-        </p>
+          <p>Collateral: {accountSummary ? formatUnits(accountSummary[0], 18): "?"}</p>
+          <p>Debt: {isLoading ? "..." : formatUnits(accountSummary?.[1] ?? 0n, 18)}</p>
+          <p>Borrowable: {isLoading ? "..." : formatUnits(accountSummary?.[2] ?? 0n, 18)}</p>
+          <p>
+            Health Factor:{" "}
+            {healthFactor
+              ? healthFactor.toString() === MaxUint256.toString()
+                ? "∞"
+                : formatUnits(healthFactor, 2)
+              : "..."}
+          </p>
         <div className="mt-4 flex flex-col items-center mb-5">
             <input
               type="number"
