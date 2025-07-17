@@ -1,4 +1,4 @@
-export const Lending_Address = "0xb68a28F08Ff72276762D81C285406407742793b2";
+export const Lending_Address = "0x6E25E2e7B7a5FA7C9B6af43bF62D16a0BA5D0fD0";
 
 export const Lending_ABI = [
     {
@@ -223,17 +223,17 @@ export const Lending_ABI = [
       "outputs": [
         {
           "internalType": "uint256",
-          "name": "",
+          "name": "collateral",
           "type": "uint256"
         },
         {
           "internalType": "uint256",
-          "name": "",
+          "name": "debt",
           "type": "uint256"
         },
         {
           "internalType": "uint256",
-          "name": "",
+          "name": "borrowable",
           "type": "uint256"
         }
       ],
