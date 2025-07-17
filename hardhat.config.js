@@ -11,6 +11,7 @@ module.exports = {
   networks: {
     polygon_amoy: {
       url: "https://rpc-amoy.polygon.technology",
+      chainId: 80002,
       accounts: [process.env.PRIVATE_KEY]
     }
   }
