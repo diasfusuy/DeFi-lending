@@ -54,7 +54,8 @@ contract LendingProtocol {
         // uint256 requiredCollateral = borrowedAmount * COLLATERAL_RATIO / 100;
         // require(collateral >= requiredCollateral, "Less than required");
         uint256 price = getLatestPrice();
-        uint256 collateralValueUSD = (collateral * price) / (10 ** oracleDecimals);
+        uint256 adjustedPrice = uint256(price) * 1e18 / (10 ** oracleDecimals);
+        uint256 collateralValueUSD = (collateral * adjustedPrice) / 1e18;
         uint256 requiredCollateralUSD = borrowedAmount * COLLATERAL_RATIO / 100;
 
         require(collateralValueUSD >= requiredCollateralUSD, "Less than required");
@@ -69,7 +70,8 @@ contract LendingProtocol {
     function getBorrowableAmount(address user) public view returns (uint256){
         uint256 collateral = balanceOf[user];
         uint256 price = getLatestPrice();
-        uint256 collateralValueUSD = (collateral * price) / (10 ** oracleDecimals);
+        uint256 adjustedPrice = uint256(price) * 1e18 / (10 ** oracleDecimals);
+        uint256 collateralValueUSD = (collateral * adjustedPrice) / 1e18;
         uint256 borrowable = collateralValueUSD * 100 / COLLATERAL_RATIO;
         
         require(price > 0, "price needs to be positive");
