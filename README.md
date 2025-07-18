@@ -108,6 +108,24 @@ To ensure solvency and protect lenders, the protocol supports liquidation of und
 ### When Liquidation Happens
 If a user’s **collateral-to-debt ratio** drops below a safety threshold (e.g., health factor < 1), their position becomes **liquidatable**.
 
-This is determined using:
-```solidity
-getAccountHealth(address) < 100
+### 🛠️ How Liquidation Works
+- Anyone can call the liquidate(address user, uint256 repayAmount) function.
+
+- The liquidator pays back part (or all) of the debt on behalf of the borrower.
+
+- In return, the liquidator receives a proportional amount of the borrower’s collateral (e.g., mETH).
+
+- This acts as an incentive to keep the system solvent and reduce protocol risk.
+
+### 🌐 Live Demo
+- 🔗 https://de-fi-lending.vercel.app
+
+You can interact with the deployed frontend here.
+Make sure your wallet is connected to the Polygon Amoy testnet and has test mETH and mUSDC.
+
+### 🤔 Known Issues / Tradeoffs
+Health factor is calculated but may not always update instantly due to frontend sync delays.
+
+Chainlink price may return slightly outdated data on the Amoy testnet.
+
+Not battle-tested for production — this is a proof-of-concept.
