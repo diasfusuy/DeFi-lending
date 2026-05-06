@@ -248,22 +248,16 @@ contract LendingProtocol {
     function liquidate(address user, uint256 repayAmount) external {
         require(repayAmount <= debtOf[user], "Repay amount exceeds user's debt");
         require(isLiquidatable(user), "Account is not liquidatable");
-
-        // Transfer mETH from liquidator to contract
-        mUsdc.safeTransferFrom(msg.sender, address(this), repayAmount);
+        uint256 reward = repayAmount * 105 / 100;
+        require(balanceOf[user] >= reward, "Insufficent collateral to reward liquidator");
 
         // Burn user debt
         debtOf[user] -= repayAmount;
-
-        // Calculate collateral reward 
-        uint256 reward = repayAmount * 105 / 100;
-        console.log("User balance: %s", balanceOf[user]);
-        console.log("Reward needed: %s", reward);
-
-        require(balanceOf[user] >= reward, "Insufficent collateral to reward liquidator");
-
         // Transfer collateral reward to liquidator
         balanceOf[user] -= reward;
+        
+        // Transfer mETH from liquidator to contract
+        mUsdc.safeTransferFrom(msg.sender, address(this), repayAmount);
         mEth.safeTransfer(msg.sender, reward);
 
         emit Liquidated(user, msg.sender, repayAmount, reward);
