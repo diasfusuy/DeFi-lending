@@ -9,17 +9,20 @@ contract MockV3Aggregator is AggregatorV3Interface {
     uint256 public latestTimestamp;
     uint256 public latestRound;
     uint80 public latestRoundId;
+    address public owner;
 
     mapping(uint80 => int256) public answers;
     mapping(uint80 => uint256) public timestamps;
     mapping(uint80 => uint256) public startedAt;
 
     constructor(uint8 _decimals, int256 _initialAnswer) {
+        owner = msg.sender;
         decimals = _decimals;
         updateAnswer(_initialAnswer);
     }
 
     function updateAnswer(int256 _answer) public {
+        require(msg.sender == owner, "Not owner");
         latestAnswer = _answer;
         latestTimestamp = block.timestamp;
         latestRound++;
@@ -45,6 +48,7 @@ contract MockV3Aggregator is AggregatorV3Interface {
     function latestRoundData() external view override returns (
         uint80 roundId, int256 answer, uint256 startedAt_, uint256 updatedAt, uint80 answeredInRound
     ) {
+        require(latestAnswer > 0, "No answer set");
         return (
             latestRoundId,
             latestAnswer,

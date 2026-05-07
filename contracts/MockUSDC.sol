@@ -42,4 +42,15 @@ contract MockUSDC is ERC20, Ownable, ERC20Permit {
     function mint(address to, uint256 amount) public onlyOwner {
         _mint(to, amount);
     }
+
+/**
+ * @notice Burns MockUSDC tokens from a specified address.
+ * @dev Restricted to the contract owner (LendingProtocol after ownership transfer).
+ *
+ * @param from Address whose tokens will be burned.
+ * @param amount Amount of tokens to burn (in token base units).
+ */
+    function burn(address from, uint256 amount) public onlyOwner {
+    _burn(from, amount);
+    }
 }

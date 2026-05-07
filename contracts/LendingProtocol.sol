@@ -4,7 +4,6 @@ pragma solidity ^0.8.27;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "hardhat/console.sol";
 
 /**
  * @title IMintableERC20
@@ -15,7 +14,9 @@ import "hardhat/console.sol";
  */
 interface IMintableERC20 is IERC20 {
         function mint(address to, uint256 amount) external;
+        function burn(address from, uint256 amount) external;
     } 
+
 
 /**
  * @title LendingProtocol
@@ -55,7 +56,6 @@ contract LendingProtocol {
     event Liquidated(address indexed user, address indexed liquidator, uint256 repayAmount, uint256 rewardAmount);
 
     IMintableERC20 public mUsdcMintable;
-    IMintableERC20 public mEthMintable;
     IERC20 public mUsdc;
     IERC20 public mEth;
     mapping (address => uint256) public balanceOf;
@@ -78,7 +78,6 @@ contract LendingProtocol {
         mUsdc = IERC20(usdcAddress);
         mUsdcMintable = IMintableERC20(usdcAddress);
         mEth = IERC20(ethAddress);
-        mEthMintable = IMintableERC20(ethAddress);
         priceFeed = AggregatorV3Interface(_priceFeed);
         oracleDecimals = priceFeed.decimals();
     }
@@ -99,9 +98,10 @@ contract LendingProtocol {
  */
     function depositCollateral(uint256 amount) external {
         require(amount > 0, "Amount must be more than 0");
-        mEth.safeTransferFrom(msg.sender, address(this), amount); 
-        
         balanceOf[msg.sender] += amount;
+
+        mEth.safeTransferFrom(msg.sender, address(this), amount); 
+
         emit CollateralDeposited(msg.sender, amount);
     }
 
@@ -122,23 +122,46 @@ contract LendingProtocol {
  * @param borrowedAmount Amount of mock USDC to borrow (protocol treats this as USD-denominated).
  */
    function borrow(uint256 borrowedAmount) external {
+        require(borrowedAmount > 0, "Amount must be more than 0");
+
         uint256 collateral = balanceOf[msg.sender];
-        // replace old logic with the live price
-        // uint256 requiredCollateral = borrowedAmount * COLLATERAL_RATIO / 100;
-        // require(collateral >= requiredCollateral, "Less than required");
         uint256 price = getLatestPrice();
         uint256 adjustedPrice = uint256(price) * 1e18 / (10 ** oracleDecimals);
         uint256 collateralValueUSD = (collateral * adjustedPrice) / 1e18;
-        uint256 requiredCollateralUSD = borrowedAmount * COLLATERAL_RATIO / 100;
+        uint256 totalDebt = debtOf[msg.sender] + borrowedAmount;
+        uint256 requiredCollateralUSD = totalDebt * COLLATERAL_RATIO / 100;
 
         require(collateralValueUSD >= requiredCollateralUSD, "Less than required");
-
 
         debtOf[msg.sender] += borrowedAmount;
         mUsdcMintable.mint(msg.sender, borrowedAmount);
 
         emit Borrowed(msg.sender, borrowedAmount);        
     }
+
+/**
+ * @notice Repays part or all of the caller's outstanding debt.
+ * @dev
+ * Requirements:
+ * - `amount` must be greater than zero.
+ * - `amount` must not exceed the caller's current debt.
+ *
+ * Effects:
+ * - Reduces `debtOf[msg.sender]` by `amount`.
+ * - Burns `amount` of mUSDC from the caller's wallet.
+ *
+ * @param amount Amount of mock USDC to repay.
+ */
+
+    function repay(uint256 amount) external {
+    require(amount > 0, "Amount must be more than 0");
+    require(amount <= debtOf[msg.sender], "Exceeds debt");
+
+    debtOf[msg.sender] -= amount;
+
+    mUsdcMintable.burn(msg.sender, amount);
+    }
+
 
 /**
  * @notice Calculates the maximum borrowable amount of mock USDC for a user based on current collateral value.
@@ -159,8 +182,6 @@ contract LendingProtocol {
         uint256 adjustedPrice = uint256(price) * 1e18 / (10 ** oracleDecimals);
         uint256 collateralValueUSD = (collateral * adjustedPrice) / 1e18;
         uint256 borrowable = collateralValueUSD * 100 / COLLATERAL_RATIO;
-        
-        require(price > 0, "price needs to be positive");
 
         return borrowable;
     }
@@ -185,9 +206,7 @@ contract LendingProtocol {
         return type(uint256).max;
     }
 
-    (, int256 price,,,) = priceFeed.latestRoundData(); // ETH/USD
-    uint8 decimals = priceFeed.decimals();
-    uint256 adjustedPrice = uint256(price) * 1e18 / (10 ** decimals);
+    uint256 adjustedPrice = getLatestPrice() * 1e18 / (10 ** oracleDecimals);
 
     uint256 collateralValueInUSD = collateral * adjustedPrice / 1e18;
 
@@ -203,6 +222,7 @@ contract LendingProtocol {
  */
     function getLatestPrice() public view returns (uint256) {
         (, int256 price, , uint256 updatedAt ,) = priceFeed.latestRoundData();
+        require(price > 0, "Invalid price from oracle");
         require(updatedAt >= block.timestamp - STALE_PRICE_TOLERANCE, "Stale price feed");
         return uint256(price);
     }
@@ -248,7 +268,10 @@ contract LendingProtocol {
     function liquidate(address user, uint256 repayAmount) external {
         require(repayAmount <= debtOf[user], "Repay amount exceeds user's debt");
         require(isLiquidatable(user), "Account is not liquidatable");
-        uint256 reward = repayAmount * 105 / 100;
+        uint256 price = getLatestPrice();
+        uint256 adjustedPrice = price * 1e18 / (10 ** oracleDecimals);
+        uint256 rewardInUSD = repayAmount * 105 / 100;
+        uint256 reward = rewardInUSD * 1e18 / adjustedPrice;
         require(balanceOf[user] >= reward, "Insufficent collateral to reward liquidator");
 
         // Burn user debt
@@ -258,6 +281,8 @@ contract LendingProtocol {
         
         // Transfer mETH from liquidator to contract
         mUsdc.safeTransferFrom(msg.sender, address(this), repayAmount);
+        mUsdcMintable.burn(address(this), repayAmount);
+
         mEth.safeTransfer(msg.sender, reward);
 
         emit Liquidated(user, msg.sender, repayAmount, reward);
