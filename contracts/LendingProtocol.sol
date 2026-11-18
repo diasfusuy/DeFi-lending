@@ -38,10 +38,9 @@ interface IMintableERC20 is IERC20 {
  * - debtOf[user]: tracks borrowed amount (mUSDC)
  *
  * @dev Notes / Simplifications
- * - No repay function is implemented (liquidation reduces debt, but users cannot voluntarily repay).
- * - Liquidation reward is hardcoded (5% bonus via 105/100 multiplier).
- * - In real protocols, liquidation seizes collateral without transferring debt tokens into the protocol
- *   unless they are burned / accounted for; this prototype keeps it simple for learning/testing.
+ * - Users repay with {repay}; repaid and liquidated mUSDC is burned.
+ * - Liquidation reward is hardcoded (5% bonus via 105/100 multiplier), converted from USD to mETH at the oracle price.
+ * - Positions whose collateral is worth less than debt + bonus cannot be liquidated (no bad-debt handling yet).
  */
 contract LendingProtocol {
     using SafeERC20 for IERC20; 

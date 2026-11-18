@@ -61,6 +61,13 @@ describe("LendingProtocol", () => {
         await lending.connect(user).borrow(amount)
     };
 
+    // Liquidation reward in mETH: 105% of the repaid USD value, converted at the oracle price (8 decimals).
+    function expectedRewardInEth(repayAmount, oraclePrice) {
+        const rewardInUSD = repayAmount * 105n / 100n;
+        const adjustedPrice = BigInt(oraclePrice) * 10n ** 18n / 10n ** 8n;
+        return rewardInUSD * 10n ** 18n / adjustedPrice;
+    }
+
     it("should allow user to deposit", async () => {
     const depositAmount = ethers.parseUnits("1000", 18);
     const lendingAddress = await lending.getAddress();
@@ -240,7 +247,7 @@ describe("LendingProtocol", () => {
         const afterCollateral = await mockETH.balanceOf(liquidator.address);
         const debtAfter = await lending.debtOf(user.address);
         const collateralAfter = await lending.balanceOf(user.address);
-        const expectedReward = (ethers.parseUnits("500", 18)) * 105n / 100n;
+        const expectedReward = expectedRewardInEth(ethers.parseUnits("500", 18), "50000000");
 
         expect(afterCollateral).to.equal(beforeCollateral + expectedReward);
         expect(debtAfter).to.equal((ethers.parseUnits("500", 18))); 
@@ -280,14 +287,15 @@ describe("LendingProtocol", () => {
         await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
         await depositFromUser(ethers.parseUnits("1500", 18));
         await borrowFromUser(ethers.parseUnits("1000", 18));
-        await MockV3.updateAnswer("50000000");
+        // $0.79: health is 118% (below the 120% threshold) and collateral still covers debt + 5% bonus
+        await MockV3.updateAnswer("79000000");
         await mockUSDC.connect(liquidator).approve(lendingAddress, ethers.parseUnits("1000", 18));
 
         const before = await mockETH.balanceOf(liquidator.address);
         await lending.connect(liquidator).liquidate(user.address, ethers.parseUnits("1000", 18));
 
         const after = await mockETH.balanceOf(liquidator.address);
-        const reward = ethers.parseUnits("1000", 18) * 105n / 100n;
+        const reward = expectedRewardInEth(ethers.parseUnits("1000", 18), "79000000");
 
         expect(after - before).to.equal(reward);
 
@@ -304,11 +312,11 @@ describe("LendingProtocol", () => {
         await mockETH.connect(user).approve(lendingAddress, ethers.parseUnits("1500", 18));
         await depositFromUser(ethers.parseUnits("1500", 18));
         await borrowFromUser(ethers.parseUnits("1000", 18));
-        await MockV3.updateAnswer("50000000");
+        await MockV3.updateAnswer("79000000");
         await mockUSDC.connect(liquidator).approve(lendingAddress, ethers.parseUnits("1000", 18));
 
         const repayAmount = ethers.parseUnits("1000", 18);
-        const expectedReward = repayAmount * 105n / 100n;
+        const expectedReward = expectedRewardInEth(repayAmount, "79000000");
 
         await expect(
             lending.connect(liquidator).liquidate(user.address, repayAmount)
